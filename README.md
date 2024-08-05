@@ -46,20 +46,32 @@
     sudo reboot
     ```
 
+## Create a Virtual Environment
+1. Ensure you have the required packages to create a virtual environment:
+    ```bash
+    sudo apt-get install python3-venv
+    ```
+
+2. Create a virtual environment:
+    ```bash
+    python3 -m venv myenv
+    ```
+
+3. Activate the virtual environment:
+    ```bash
+    source myenv/bin/activate
+    ```
+
 ## Install Python Libraries
 1. Update the package lists:
     ```bash
     sudo apt-get update
     ```
 
-2. Install the `python3-smbus` and `i2c-tools` packages:
+2. Install the required libraries within the virtual environment:
     ```bash
     sudo apt-get install -y python3-smbus i2c-tools
-    ```
-
-3. Install the DHT11 library:
-    ```bash
-    sudo pip3 install Adafruit_DHT
+    pip install adafruit-circuitpython-dht smbus2
     ```
 
 ## Create and Run Code
@@ -70,18 +82,14 @@
 
 2. Copy the following code into the file:
     ```python
-    import Adafruit_DHT
-    import RPi.GPIO as GPIO
     import time
-    import smbus
-    import sys
+    import adafruit_dht
+    import board
+    import smbus2
+    import RPi.GPIO as GPIO
 
-    # DHT11 Sensor Settings
-    DHT_SENSOR = Adafruit_DHT.DHT11
-    DHT_PIN = 17
-
-    # GPIO Mode (BOARD / BCM)
-    GPIO.setmode(GPIO.BCM)
+    # Initialize the DHT11 device
+    dht_device = adafruit_dht.DHT11(board.D17)
 
     # I2C parameters
     I2C_ADDR = 0x27  # I2C device address, if any error, check your device address
@@ -102,7 +110,7 @@
 
     # Open I2C interface
     try:
-        bus = smbus.SMBus(1)  # Rev 2 Pi uses 1
+        bus = smbus2.SMBus(1)  # Rev 2 Pi uses 1
     except Exception as e:
         print(f"Error initializing I2C bus: {e}")
         sys.exit(1)
@@ -150,14 +158,19 @@
         try:
             lcd_init()
             while True:
-                humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
-                if humidity is not None and temperature is not None:
-                    print(f"Temp={temperature:.1f}C  Humidity={humidity:.1f}%")
-                    lcd_string(f"Temp:{temperature:.1f}C", LCD_LINE_1)
-                    lcd_string(f"Hum:{humidity:.1f}%", LCD_LINE_2)
-                else:
-                    print("Failed to retrieve data from humidity sensor")
-                time.sleep(2)
+                try:
+                    temperature_c = dht_device.temperature
+                    temperature_f = temperature_c * (9 / 5) + 32
+                    humidity = dht_device.humidity
+
+                    print("Temp:{:.1f} C / {:.1f} F    Humidity: {}%".format(temperature_c, temperature_f, humidity))
+                    lcd_string(f"Temp:{temperature_c:.1f}C", LCD_LINE_1)
+                    lcd_string(f"Hum:{humidity}%", LCD_LINE_2)
+
+                except RuntimeError as error:
+                    print(error.args[0])
+
+                time.sleep(2.0)
 
         except KeyboardInterrupt:
             print("Measurement stopped by User")
@@ -179,3 +192,12 @@
     ```bash
     sudo python3 dht11_lcd.py
     ```
+
+6. Remember to activate your virtual environment before running the script if it is not already activated:
+    ```bash
+    source myenv/bin/activate
+    ```
+
+To deactivate the virtual environment, you can use:
+```bash
+deactivate
